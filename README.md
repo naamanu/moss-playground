@@ -3,7 +3,7 @@
 A browser playground for [Moss](https://github.com/naamanu/moss), written in
 Moss with [Rhizoid](https://github.com/naamanu/rhizoid).
 
-Live at **https://nanamanu.com/moss-playground-site/**.
+Live at **https://nanamanu.com/moss-playground/**.
 
 - **Live type checking.** The Moss compiler runs in the page and recompiles
   on every edit (about one frame for the examples). Errors and warnings are
@@ -15,7 +15,8 @@ Live at **https://nanamanu.com/moss-playground-site/**.
 
 ## Running it
 
-It uses the Moss compiler and Rhizoid from checkouts next to this one:
+It uses the Moss compiler and Rhizoid from checkouts next to this one.
+(Moss and Rhizoid are private for now, so building it needs access to them.)
 
 ```sh
 git clone git@github.com:naamanu/moss.git ../moss && (cd ../moss && npm install)
@@ -57,8 +58,6 @@ examples/             the example programs
 
 ## Deploying
 
-`npm run deploy` builds the site and pushes `dist/` to the public repo
-[naamanu/moss-playground-site](https://github.com/naamanu/moss-playground-site),
-which GitHub Pages serves. Only build output is published there; this
-repository, Moss and Rhizoid stay private. (The published bundles do contain
-the minified compiler and Rhizoid runtime.)
+`npm run deploy` builds the site and force-pushes `dist/` as a single commit
+to this repository's `gh-pages` branch, which GitHub Pages serves. The
+published bundles contain the minified compiler and Rhizoid runtime.
