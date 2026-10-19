@@ -1,0 +1,30 @@
+(* The playground's interface to the compiler, the preview frame and the URL.
+   Implemented in runtime/index.ts. *)
+
+open Rhizoid
+
+type severity = Error | Warning
+
+(* line = 0 when the diagnostic has no position in the program *)
+type diagnostic = { severity : severity; line : int; col : int; message : string }
+
+(* Compile a program: its JavaScript (if it compiled) and its errors and warnings. *)
+external compile : string -> string option * diagnostic list = "compile"
+
+(* Run compiled JavaScript in the preview frame, clearing the console. *)
+external run : string -> unit effect = "run"
+
+(* The preview's console: ("out" | "err" | "info", text), oldest first. *)
+external console_lines : (string * string) list val = "consoleLines"
+
+(* (name, source) of each example, hello first. *)
+external examples : (string * string) list = "examples"
+
+(* The program in the URL, else the hello example. *)
+external initial_source : string = "initialSource"
+
+(* Put the program in the URL and copy the link. *)
+external share : string -> unit effect = "share"
+
+(* Move the editor's cursor to a line and column. *)
+external focus_at : int -> int -> unit effect = "focusAt"

@@ -1,0 +1,65 @@
+(* The Moss playground, written in Moss with Rhizoid.
+   Every edit recompiles the program in the browser, so errors appear as you
+   type; Run executes it in the preview frame. *)
+
+open Rhizoid
+open Api
+
+let textarea attrs = el "textarea" attrs []
+let iframe attrs = el "iframe" attrs []
+let nav attrs children = el "nav" attrs children
+let main_ attrs children = el "main" attrs children
+
+let count_of sev diags = List.length (List.filter (fun d -> d.severity = sev) diags)
+
+let summary diags =
+  let errors = count_of Error diags in
+  let warnings = count_of Warning diags in
+  if errors > 0 then show errors ^ (if errors = 1 then " error" else " errors")
+  else if warnings > 0 then "ok, " ^ show warnings ^ (if warnings = 1 then " warning" else " warnings")
+  else "ok"
+
+let diagnostic_view d =
+  li [class_ (match d.severity with Error -> "diag error" | Warning -> "diag warning");
+      on_click (focus_at d.line d.col)] [
+    span [class_ "pos"] [text (if d.line > 0 then show d.line ^ ":" ^ show d.col else "")];
+    span [class_ "msg"] [text d.message]
+  ]
+
+let console_view lines =
+  if List.is_empty lines then p [class_ "hint"] [text "Press Run to run the program."]
+  else ul [class_ "console"] (List.map (fun (kind, s) -> li [class_ kind] [text s]) lines)
+
+let example_button current set_source (name, src) =
+  button [class_ (if current = src then "example current" else "example"); on_click (set_source src)] [text name]
+
+let page =
+  let* source, set_source = state initial_source in
+  let* compiled = let+ s = source in compile s in
+  let* shared, set_shared = state false in
+  let+ source = source and set_source = set_source and (js, diags) = compiled
+  and lines = console_lines and shared = shared and set_shared = set_shared in
+  let run_it = match js with Some code -> run code | None -> Effect.none in
+  div [class_ "playground"] [
+    header [] [
+      h1 [] [text "Moss"; span [class_ "sub"] [text " playground"]];
+      nav [] (List.map (example_button source set_source) examples);
+      span [class_ "spacer"] [];
+      span [class_ (if js = None then "summary bad" else "summary")] [text (summary diags)];
+      button [class_ "run"; bool_attr "disabled" (js = None); on_click run_it] [text "Run ▶"];
+      button [on_click (Effect.seq [share source; set_shared true])] [text (if shared then "Link copied" else "Share")]
+    ];
+    main_ [] [
+      section [class_ "editor-pane"] [
+        textarea [id_ "editor"; attr "spellcheck" "false"; value source;
+                  on_input (fun s -> Effect.seq [set_source s; set_shared false])];
+        (if List.is_empty diags then Html.none else ul [class_ "diagnostics"] (List.map diagnostic_view diags))
+      ];
+      section [class_ "output-pane"] [
+        iframe [id_ "preview"; attr "title" "Program preview"];
+        console_view lines
+      ]
+    ]
+  ]
+
+let main = start page

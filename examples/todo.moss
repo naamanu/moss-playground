@@ -1,0 +1,123 @@
+(* TodoMVC-style app.
+   - The model lives in a state machine; actions are plain data.
+   - Each row is its own component (with local "editing" state) instantiated
+     per key by `assoc`, so toggling one todo recomputes one row.
+   - `assoc` runs over *all* todos and the filter is applied to the rendered
+     rows afterwards. A row's state lives as long as its key is in assoc's
+     input, so hiding a row with the filter must not remove it from that map.
+   - `match*` swaps between the empty state and the list; the list keeps its
+     per-row state while hidden. *)
+
+open Rhizoid
+
+type todo = { id : int; title : string; completed : bool }
+
+type filter = All | Active | Completed
+
+type action =
+  | Add of string
+  | Toggle of int
+  | Rename of int * string
+  | Remove of int
+  | Toggle_all of bool
+  | Clear_completed
+
+type model = { next_id : int; todos : (int, todo) map }
+
+let update_todo id f todos =
+  Map.update id (fun t -> match t with Some t -> Some (f t) | None -> None) todos
+
+let reduce m action =
+  match action with
+  | Add title ->
+    let title = String.trim title in
+    if String.is_empty title then m
+    else
+      let t = { id = m.next_id; title = title; completed = false } in
+      { next_id = m.next_id + 1; todos = Map.add t.id t m.todos }
+  | Toggle id -> { m with todos = update_todo id (fun t -> { t with completed = not t.completed }) m.todos }
+  | Rename (id, title) -> { m with todos = update_todo id (fun t -> { t with title = String.trim title }) m.todos }
+  | Remove id -> { m with todos = Map.remove id m.todos }
+  | Toggle_all v -> { m with todos = Map.map (fun t -> { t with completed = v }) m.todos }
+  | Clear_completed -> { m with todos = Map.filter (fun _ t -> not t.completed) m.todos }
+
+let shows f t =
+  match f with
+  | All -> true
+  | Active -> not t.completed
+  | Completed -> t.completed
+
+let initial =
+  { next_id = 4;
+    todos = Map.of_list [
+      (1, { id = 1; title = "Write a language"; completed = true });
+      (2, { id = 2; title = "Make it incremental"; completed = false });
+      (3, { id = 3; title = "Ship it"; completed = false })
+    ] }
+
+let todo_row dispatch (t : todo val) =
+  let* editing, set_editing = state false in
+  let* draft, set_draft = state "" in
+  let+ t = t and editing = editing and set_editing = set_editing
+  and draft = draft and set_draft = set_draft and dispatch = dispatch in
+  (* Return the todo alongside its view so the list can filter rows. *)
+  (t, li [key (show t.id); class_ (if t.completed then "completed" else "")] [
+    input [type_ "checkbox"; checked t.completed; on_check (fun _ -> dispatch (Toggle t.id))];
+    (if editing then
+       input [class_ "edit"; value draft; on_input set_draft;
+              on_enter (Effect.seq [dispatch (Rename (t.id, draft)); set_editing false])]
+     else
+       label [on_dblclick (Effect.seq [set_draft t.title; set_editing true])] [text t.title]);
+    button [class_ "destroy"; on_click (dispatch (Remove t.id))] [text "×"]
+  ])
+
+let filter_link current set_filter f name =
+  button [class_ (if current = f then "selected" else ""); on_click (set_filter f)] [text name]
+
+let page =
+  let* model, dispatch = state_machine initial reduce in
+  let* draft, set_draft = state "" in
+  let* filter, set_filter = state All in
+  let* todos = let+ m = model in m.todos in
+  let* rows = assoc todos (fun _ t -> todo_row dispatch t) in
+  let* has_todos = let+ m = model in Map.size m.todos > 0 in
+  let* list =
+    match* has_todos with
+    | false -> return (const (p [class_ "empty"] [text "Nothing to do. Add something above."]))
+    | true ->
+      let+ rows = rows and f = filter in
+      Map.values rows
+      |> List.filter (fun (t, _) -> shows f t)
+      |> List.map snd
+      |> ul [class_ "todo-list"] in
+  let+ list = list and m = model and draft = draft and set_draft = set_draft
+  and dispatch = dispatch and f = filter and set_filter = set_filter in
+  let left = Map.size (Map.filter (fun _ t -> not t.completed) m.todos) in
+  let total = Map.size m.todos in
+  section [class_ "todoapp"] [
+    header [] [
+      h1 [] [text "todos"];
+      input [class_ "new-todo"; placeholder "What needs to be done?"; value draft;
+             on_input set_draft;
+             on_enter (Effect.seq [dispatch (Add draft); set_draft ""])]
+    ];
+    (if total > 0 then
+       label [class_ "toggle-all"] [
+         input [type_ "checkbox"; checked (left = 0); on_check (fun v -> dispatch (Toggle_all v))];
+         text "Mark all as complete"
+       ]
+     else Html.none);
+    list;
+    footer [] [
+      span [class_ "count"] [text (show left ^ (if left = 1 then " item left" else " items left"))];
+      div [class_ "filters"] [
+        filter_link f set_filter All "All";
+        filter_link f set_filter Active "Active";
+        filter_link f set_filter Completed "Completed"
+      ];
+      (if total > left then button [class_ "clear"; on_click (dispatch Clear_completed)] [text "Clear completed"]
+       else Html.none)
+    ]
+  ]
+
+let main = start page

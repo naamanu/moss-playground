@@ -1,0 +1,6 @@
+{
+  "name": "moss-playground",
+  "src": "src",
+  "runtime": "runtime/index.ts",
+  "dependencies": { "rhizoid": "node_modules/rhizoid" }
+}

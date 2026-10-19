@@ -1,0 +1,71 @@
+(* Async resources: search as you type against a simulated backend.
+   - `resource key task` loads data for the current key. Changing the key
+     aborts the previous request, and a response that arrives after a newer
+     request started is dropped, so stale results never show.
+   - Sleeping before the request debounces typing: each keystroke changes
+     the key, which cancels the pending sleep.
+   - Hiding the panel deactivates its match* branch, which aborts the
+     request in flight. Showing it again restarts the request; the query
+     itself is kept, because inactive branches keep their state. *)
+
+open Rhizoid
+
+let fruit = [
+  "apple"; "apricot"; "avocado"; "banana"; "blackberry"; "blueberry"; "cherry";
+  "clementine"; "coconut"; "cranberry"; "date"; "dragonfruit"; "elderberry";
+  "fig"; "gooseberry"; "grape"; "grapefruit"; "guava"; "honeydew"; "jackfruit";
+  "kiwi"; "kumquat"; "lemon"; "lime"; "lychee"; "mango"; "melon"; "mulberry";
+  "nectarine"; "olive"; "orange"; "papaya"; "passionfruit"; "peach"; "pear";
+  "persimmon"; "pineapple"; "plum"; "pomegranate"; "quince"; "raspberry";
+  "starfruit"; "strawberry"; "tangerine"; "watermelon"
+]
+
+(* A fake server whose answers take 150-550 ms depending on the query, so a
+   slow answer for "ap" can arrive after a fast one for "app". *)
+let latency q = 150 + (String.length q * 173) mod 400
+
+let backend q =
+  if q = "error" then Task.and_then (fun () -> Task.fail "the server refused that query") (Task.sleep 300)
+  else Task.map (fun () -> List.filter (fun w -> String.contains q w) fruit) (Task.sleep (latency q))
+
+let search q =
+  if String.is_empty q then Task.succeed []
+  else Task.and_then (fun () -> backend q) (Task.sleep 200)
+
+let results_view q r =
+  if String.is_empty q then p [class_ "status"] [text "Type to search."]
+  else
+    match r with
+    | Loading -> p [class_ "status"] [text ("Searching for \"" ^ q ^ "\"…")]
+    | Failed msg -> p [class_ "status error"] [text ("Error: " ^ msg)]
+    | Loaded [] -> p [class_ "status"] [text "No matches."]
+    | Loaded ws -> ul [class_ "results"] (List.map (fun w -> li [key w] [text w]) ws)
+
+let search_panel =
+  let* query, set_query = state "" in
+  let* key = let+ q = query in String.lower (String.trim q) in
+  let* results = resource key search in
+  let+ q = query and k = key and set_query = set_query and r = results in
+  div [class_ "panel"] [
+    input [class_ "query"; placeholder "Search fruit (try \"error\")"; value q; on_input set_query];
+    results_view k r
+  ]
+
+let page =
+  let* visible, set_visible = state true in
+  let* panel =
+    match* visible with
+    | true -> search_panel
+    | false -> return (const (p [class_ "status"] [text "Hidden. A request in flight was cancelled; showing the panel resumes it."]))
+  in
+  let+ panel = panel and v = visible and set_visible = set_visible in
+  section [] [
+    h1 [] [text "Search"];
+    label [class_ "toggle"] [
+      input [type_ "checkbox"; checked v; on_check set_visible];
+      text " Show search panel"
+    ];
+    panel
+  ]
+
+let main = start page

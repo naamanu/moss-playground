@@ -1,0 +1,21 @@
+(* The classic counter: one piece of state, one view. *)
+
+open Rhizoid
+
+let counter =
+  let* count, set = state 0 in
+  let+ c = count and set = set in
+  div [class_ "counter"] [
+    button [on_click (set (c - 1))] [text "-"];
+    span [] [text (show c)];
+    button [on_click (set (c + 1))] [text "+"]
+  ]
+
+(* Components compose: each instance has its own state. *)
+let page =
+  let* a = counter in
+  let* b = counter in
+  let+ a = a and b = b in
+  div [] [h1 [] [text "Two counters"]; a; b]
+
+let main = start page

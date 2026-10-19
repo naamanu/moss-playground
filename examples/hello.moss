@@ -1,0 +1,23 @@
+(* A plain Moss program: `main` is an effect, and Run prints its output.
+   Try changing it: type errors appear as you type. *)
+
+type shape = Circle of float | Rect of float * float
+
+let area s =
+  match s with
+  | Circle r -> 3.14159 *. r *. r
+  | Rect (w, h) -> w *. h
+
+let describe s =
+  match s with
+  | Circle r -> "circle of radius " ^ Float.to_string r
+  | Rect (w, h) -> Float.to_string w ^ " x " ^ Float.to_string h ^ " rectangle"
+
+let shapes = [Circle 1.0; Rect (2.0, 3.0); Circle 0.5]
+
+let rec fib n = if n < 2 then n else fib (n - 1) + fib (n - 2)
+
+let main =
+  Effect.seq (
+    List.map (fun s -> Effect.print (describe s ^ ": area " ^ Float.fixed 2 (area s))) shapes
+    @ [Effect.print ("fib 20 = " ^ show (fib 20))])
