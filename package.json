@@ -10,7 +10,8 @@
     "build": "npm run prepare-runtime && moss build src/playground.moss -o dist",
     "pretest": "npm run prepare-runtime",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "deploy": "npm run build && node scripts/deploy.mjs"
   },
   "engines": {
     "node": ">=22"

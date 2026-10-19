@@ -97,32 +97,36 @@ function listen(): void {
   });
 }
 
-/** The page loaded into the preview frame: forwards console output and errors, then runs the program. */
-function frameDocument(programUrl: string): string {
+/**
+ * The page loaded into the preview frame. The frame is sandboxed
+ * (`allow-scripts` only), so it has an opaque origin: the program can't reach
+ * the playground or anything else on its domain. It loads the runtime bundles
+ * cross-origin (which needs `Access-Control-Allow-Origin`; GitHub Pages and
+ * `moss dev` send it) and reports output and errors with postMessage.
+ */
+function frameDocument(js: string): string {
+  // The program is inlined (a sandboxed frame can't load the parent's blob:
+  // URLs). Strings in compiled code can contain "</script>": escape it.
+  const program = `${js}\nR.runMain(main);\n`.replace(/<\/(script)/gi, "<\\/$1");
   return `<!doctype html>
 <html><head><meta charset="utf-8">
 <style>
   body { font: 14px/1.5 system-ui, sans-serif; margin: 12px; color: #1f2328; }
   button { font: inherit; padding: 2px 10px; }
   input { font: inherit; }
-</style></head>
-<body><div id="app"></div>
-<script type="module">
+</style>
+<script>
   const send = (kind, text) => parent.postMessage({ moss: true, kind, text }, "*");
   const show = (x) => (typeof x === "string" ? x : JSON.stringify(x));
   console.log = (...a) => send("out", a.map(show).join(" "));
-  addEventListener("error", (e) => send("err", e.message));
+  addEventListener("error", (e) => send("err", e.message || "error loading the program"));
   addEventListener("unhandledrejection", (e) => send("err", String(e.reason?.message ?? e.reason)));
-  try {
-    const m = await import(${JSON.stringify(programUrl)});
-    m.R.runMain(m.main);
-  } catch (e) {
-    send("err", e?.message ?? String(e));
-  }
+</script></head>
+<body><div id="app"></div>
+<script type="module">
+${program}
 </script></body></html>`;
 }
-
-let lastProgram: string | undefined;
 
 /** `run : string -> unit effect`: run compiled JS in the preview frame, with a fresh console. */
 export function run(js: string): Eff {
@@ -130,11 +134,8 @@ export function run(js: string): Eff {
     listen();
     lines.length = 0;
     append("info", "Running…");
-    if (lastProgram) URL.revokeObjectURL(lastProgram);
-    // Expose the runtime namespace so the frame can call R.runMain(main).
-    lastProgram = URL.createObjectURL(new Blob([`${js}\nexport { R };\n`], { type: "text/javascript" }));
     const frame = document.getElementById("preview") as HTMLIFrameElement;
-    frame.srcdoc = frameDocument(lastProgram);
+    frame.srcdoc = frameDocument(js);
   });
 }
 

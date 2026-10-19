@@ -56,7 +56,8 @@ let page =
         (if List.is_empty diags then Html.none else ul [class_ "diagnostics"] (List.map diagnostic_view diags))
       ];
       section [class_ "output-pane"] [
-        iframe [id_ "preview"; attr "title" "Program preview"];
+        (* sandboxed: programs get an opaque origin and can't reach the playground *)
+        iframe [id_ "preview"; attr "title" "Program preview"; attr "sandbox" "allow-scripts"];
         console_view lines
       ]
     ]
