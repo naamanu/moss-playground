@@ -3,7 +3,7 @@
 A browser playground for [Moss](https://github.com/naamanu/moss), written in
 Moss with [Rhizoid](https://github.com/naamanu/rhizoid).
 
-Live at **https://naamanu.github.io/moss-playground-site/**.
+Live at **https://nanamanu.com/moss-playground-site/**.
 
 - **Live type checking.** The Moss compiler runs in the page and recompiles
   on every edit (about one frame for the examples). Errors and warnings are
